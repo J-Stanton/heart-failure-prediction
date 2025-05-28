@@ -86,9 +86,13 @@ model = HeartNet(X_train.shape[1])
 criterion = nn.BCELoss()  # Binary cross-entropy
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
+train_losses = []
+val_losses = []
+
 # Train the model
-epochs = 50
+epochs = 60
 for epoch in range(epochs):
+    epoch_train_loss = 0.0
     model.train()
     for batch_X, batch_y in train_loader:
         optimizer.zero_grad()
@@ -96,12 +100,16 @@ for epoch in range(epochs):
         loss = criterion(outputs, batch_y)
         loss.backward()
         optimizer.step()
+        epoch_train_loss += loss.item()
+    avg_train_loss = epoch_train_loss / len(train_loader)
+    train_losses.append(avg_train_loss)  # Log last batch loss
     
     # Evaluate on validation set
     model.eval()
     with torch.no_grad():
         val_outputs = model(X_val_tensor)
         val_loss = criterion(val_outputs, y_val_tensor)
+        val_losses.append(val_loss.item())
     
     if (epoch + 1) % 10 == 0 or epoch == 0:
         print(f"Epoch {epoch+1}/{epochs}, Train_Loss: {loss.item():.4f}, Val Loss: {val_loss.item():.4f}")
@@ -119,11 +127,13 @@ print(f"Test Accuracy: {test_accuracy:.4f}")
 print("Confusion Matrix:")
 print(con_matrix)
 
-# Confusion matrix heatmap
-#plt.figure(figsize=(6, 5))
-#sns.heatmap(con_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=['No Disease', 'Disease'], yticklabels=['No Disease', 'Disease'])
-#plt.xlabel('Predicted')
-#plt.ylabel('Actual')
-#plt.title('Confusion Matrix')
-#plt.savefig("confusion_matrix.png")
-#plt.close()
+plt.figure(figsize=(10, 5))
+plt.plot(train_losses, label='Train Loss')
+plt.plot(val_losses, label='Validation Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Training vs Validation Loss')
+plt.legend()
+plt.grid(True)
+plt.savefig(f"loss_batch{train_loader.batch_size}_epoch{epochs}.png")
+plt.show()
