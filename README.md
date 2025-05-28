@@ -1,6 +1,6 @@
 # heart-failure-prediction
 
-In this repository, you can find our main model inside the [`CODE`](CODE/) folder or by [clicking here](CODE/model.py).
+In this repository, you can find our main model inside the [`CODE`](CODE/) folder or by [clicking here](CODE/Model.py).
 
 Additionally, the `CODE` folder contains other models that demonstrate parameter tuning, as well as a model with additional evaluation metrics, available [here](CODE/model-graphs.py).
 
