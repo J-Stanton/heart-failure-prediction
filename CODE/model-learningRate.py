@@ -9,62 +9,40 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 import matplotlib.pyplot as plt
 
 
-# Load data
-data = pd.read_csv('./heart.csv')
+data = pd.read_csv('../heart.csv')
 
-# Check for nulls
-#print("Missing values per column:")
-#print(data.isnull().sum())
-
-# Drop rows with any nulls (only if there's a small amount)
-data_clean = data.dropna()
-
-# Drop duplicates
-data_clean = data_clean.drop_duplicates()
-
-# encoding columns 
-data_encoded = pd.get_dummies(data_clean, columns=[
+cleanData = data.dropna()
+cleanData = cleanData.drop_duplicates()
+encodedData = pd.get_dummies(cleanData, columns=[
     'Sex', 'ChestPainType', 'RestingECG', 'ExerciseAngina', 'ST_Slope'
 ])
-
-# Normalize numeric columns
 scaler = StandardScaler()
-numerical_columns = ['Age', 'RestingBP', 'Cholesterol', 'MaxHR', 'Oldpeak']
-data_encoded[numerical_columns] = scaler.fit_transform(data_encoded[numerical_columns])
 
-# Separate input and output
-X = data_encoded.drop('HeartDisease', axis=1)
-y = data_encoded['HeartDisease']
+numericalColumns = ['Age', 'RestingBP', 'Cholesterol', 'MaxHR', 'Oldpeak']
+encodedData[numericalColumns] = scaler.fit_transform(encodedData[numericalColumns])
 
-# Check resulting shape
-#print("Original shape:", data.shape)
-#print("Cleaned shape:", data_clean.shape)
 
-#print(X.dtypes)
+X = encodedData.drop('HeartDisease', axis=1)
+y = encodedData['HeartDisease']
 
-# Train-test split
-X_temp, X_test, y_temp, y_test = train_test_split(X, y, test_size=0.2)
-X_train, X_val, y_train, y_val = train_test_split(X_temp, y_temp, test_size=0.25)
+tempX, testX, tempY, testY = train_test_split(X, y, test_size=0.2)
+trainX, valX, trainY, valY = train_test_split(tempX, tempY, test_size=0.25)
 
-# all boolean values are converted
-X_train = X_train.astype('float32')
-X_test = X_test.astype('float32')
+trainX = trainX.astype('float32')
+testX = testX.astype('float32')
 
-# Convert to PyTorch tensors
-X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32)
-y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32).unsqueeze(1)
+X_train_tensor = torch.tensor(trainX.values, dtype=torch.float32)
+y_train_tensor = torch.tensor(trainY.values, dtype=torch.float32).unsqueeze(1)
 
-X_val_tensor = torch.tensor(X_val.astype('float32').values)
-y_val_tensor = torch.tensor(y_val.values, dtype=torch.float32).unsqueeze(1)
+X_val_tensor = torch.tensor(valX.astype('float32').values)
+y_val_tensor = torch.tensor(valY.values, dtype=torch.float32).unsqueeze(1)
 
-X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
-y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32).unsqueeze(1)
+X_test_tensor = torch.tensor(testX.values, dtype=torch.float32)
+y_test_tensor = torch.tensor(testY.values, dtype=torch.float32).unsqueeze(1)
 
-# Wrap in DataLoader
-train_dataset = TensorDataset(X_train_tensor, y_train_tensor)
-train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+trainDataset = TensorDataset(X_train_tensor, y_train_tensor)
+trainLoader = DataLoader(trainDataset, batch_size=16, shuffle=True)
 
-# Feedforward steps using relu and sigmoid at the output for binary
 class HeartNet(nn.Module):
     def __init__(self, input_size):
         super(HeartNet, self).__init__()
@@ -81,76 +59,72 @@ class HeartNet(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-model = HeartNet(X_train.shape[1])
+model = HeartNet(trainX.shape[1])
 
-criterion = nn.BCELoss()  # Binary cross-entropy
+criterion = nn.BCELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-# Train the model
 epochs = 50
-learning_rates = [0.0001, 0.001, 0.01, 0.05]
+learningRates = [0.0001, 0.001, 0.01, 0.05]
 results = {}
 
-for lr in learning_rates:
+for lr in learningRates:
     print(f"\nTraining with learning rate: {lr}")
     
-    model = HeartNet(X_train.shape[1])
+    model = HeartNet(trainX.shape[1])
     criterion = nn.BCELoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
     
-    train_losses = []
-    val_losses = []
+    trainLosses = []
+    valLosses = []
 
     for epoch in range(epochs):
         model.train()
-        batch_losses = []
-        for batch_X, batch_y in train_loader:
+        batchLosses = []
+        for batchX, batchY in trainLoader:
             optimizer.zero_grad()
-            outputs = model(batch_X)
-            loss = criterion(outputs, batch_y)
+            outputs = model(batchX)
+            loss = criterion(outputs, batchY)
             loss.backward()
             optimizer.step()
-            batch_losses.append(loss.item())
+            batchLosses.append(loss.item())
         
         model.eval()
         with torch.no_grad():
-            val_outputs = model(X_val_tensor)
-            val_loss = criterion(val_outputs, y_val_tensor)
+            valOutput = model(X_val_tensor)
+            valLoss = criterion(valOutput, y_val_tensor)
         
-        train_losses.append(sum(batch_losses) / len(batch_losses))
-        val_losses.append(val_loss.item())
+        trainLosses.append(sum(batchLosses) / len(batchLosses))
+        valLosses.append(valLoss.item())
         
         if (epoch + 1) % 10 == 0 or epoch == 0:
-            print(f"Epoch {epoch+1}/{epochs} | Train Loss: {train_losses[-1]:.4f} | Val Loss: {val_losses[-1]:.4f}")
+            print(f"Epoch {epoch+1}/{epochs} | Train Loss: {trainLosses[-1]:.4f} | Val Loss: {valLosses[-1]:.4f}")
 
-    # Evaluate test accuracy
     model.eval()
     with torch.no_grad():
         predictions = model(X_test_tensor).round()
-        test_accuracy = accuracy_score(y_test_tensor, predictions)
+        testAccuracy = accuracy_score(y_test_tensor, predictions)
 
     results[lr] = {
-        'train_losses': train_losses,
-        'val_losses': val_losses,
-        'test_accuracy': test_accuracy
+        'trainLosses': trainLosses,
+        'valLosses': valLosses,
+        'testAccuracy': testAccuracy
     }
 
-    print(f"Test Accuracy with LR={lr}: {test_accuracy:.4f}")
+    print(f"Test Accuracy with LR={lr}: {testAccuracy:.4f}")
 
-# Plot losses
 plt.figure(figsize=(12, 6))
 for lr, metrics in results.items():
-    plt.plot(metrics['train_losses'], label=f'Train LR={lr}')
-    plt.plot(metrics['val_losses'], linestyle='--', label=f'Val LR={lr}')
+    plt.plot(metrics['trainLosses'], label=f'Train LR={lr}')
+    plt.plot(metrics['valLosses'], linestyle='--', label=f'Val LR={lr}')
 plt.xlabel('Epoch')
 plt.ylabel('Loss')
 plt.title('Train vs Val Loss for Different Learning Rates')
 plt.legend()
 plt.tight_layout()
-plt.savefig('loss_comparison.png')  # Saves instead of showing (for script use)
+plt.savefig('loss_comparison.png')
 
-# Print summary
 print("\nSummary of Learning Rates:")
 for lr, metrics in results.items():
-    print(f"LR={lr}: Final Val Loss={metrics['val_losses'][-1]:.4f}, Test Accuracy={metrics['test_accuracy']:.4f}")
+    print(f"LR={lr}: Final Val Loss={metrics['valLosses'][-1]:.4f}, Test Accuracy={metrics['testAccuracy']:.4f}")
 
